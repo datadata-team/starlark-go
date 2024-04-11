@@ -63,7 +63,7 @@ func unquote(quoted string) (s string, triple, isByte bool, err error) {
 		return
 	}
 
-	if quoted[0] != '"' && quoted[0] != '\'' || quoted[0] != quoted[len(quoted)-1] {
+	if quoted[0] != '`' && quoted[0] != '"' && quoted[0] != '\'' || quoted[0] != quoted[len(quoted)-1] {
 		err = fmt.Errorf("string literal has invalid quotes")
 		return
 	}

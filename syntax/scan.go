@@ -636,7 +636,7 @@ start:
 	}
 
 	// string literal
-	if c == '"' || c == '\'' {
+	if c == '"' || c == '\'' || c == '`' {
 		return sc.scanString(val, c)
 	}
 
@@ -852,6 +852,24 @@ func (sc *scanner) scanString(val *tokenValue, quote rune) Token {
 			}
 			if c == '\n' {
 				sc.error(val.pos, "unexpected newline in string")
+			}
+			if c == '\\' {
+				if sc.eof() {
+					sc.error(val.pos, "unexpected EOF in string")
+				}
+				c = sc.readRune()
+				raw.WriteRune(c)
+			}
+		}
+	} else if quote == '`' {
+		for {
+			if sc.eof() {
+				sc.error(val.pos, "unexpected EOF in string")
+			}
+			c := sc.readRune()
+			raw.WriteRune(c)
+			if c == quote {
+				break
 			}
 			if c == '\\' {
 				if sc.eof() {
