@@ -839,7 +839,26 @@ func (sc *scanner) scanString(val *tokenValue, quote rune) Token {
 	// Copy the prefix, e.g. r' or " (see startToken).
 	raw.Write(sc.token[:len(sc.token)-len(sc.rest)])
 
-	if !triple {
+	if quote == '`' {
+		// backtick string
+		for {
+			if sc.eof() {
+				sc.error(val.pos, "unexpected EOF in string")
+			}
+			c := sc.readRune()
+			raw.WriteRune(c)
+			if c == quote {
+				break
+			}
+			if c == '\\' {
+				if sc.eof() {
+					sc.error(val.pos, "unexpected EOF in string")
+				}
+				c = sc.readRune()
+				raw.WriteRune(c)
+			}
+		}
+	} else if !triple {
 		// single-quoted string literal
 		for {
 			if sc.eof() {
@@ -852,24 +871,6 @@ func (sc *scanner) scanString(val *tokenValue, quote rune) Token {
 			}
 			if c == '\n' {
 				sc.error(val.pos, "unexpected newline in string")
-			}
-			if c == '\\' {
-				if sc.eof() {
-					sc.error(val.pos, "unexpected EOF in string")
-				}
-				c = sc.readRune()
-				raw.WriteRune(c)
-			}
-		}
-	} else if quote == '`' {
-		for {
-			if sc.eof() {
-				sc.error(val.pos, "unexpected EOF in string")
-			}
-			c := sc.readRune()
-			raw.WriteRune(c)
-			if c == quote {
-				break
 			}
 			if c == '\\' {
 				if sc.eof() {

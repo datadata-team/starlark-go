@@ -219,6 +219,9 @@ pass`, "pass newline pass EOF"}, // consecutive newlines are consolidated
 		{`"\U0001F63F"`, `"😿" EOF`},
 		{`"\U0000dc00"`, `foo.star:1:1: invalid Unicode code point U+DC00`}, // surrogate
 
+		// backtick multiline string
+		{"`abc\ndef`", `"abc\ndef" EOF`},
+
 		// backslash escapes
 		// As in Go, a backslash must escape something.
 		// (Python started issuing a deprecation warning in 3.6.)
