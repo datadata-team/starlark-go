@@ -60,3 +60,7 @@ assert.eq(''.splitlines(True), [])
 assert.fails(lambda: ''.splitlines(1), 'got int, want bool')
 assert.fails(lambda: ''.splitlines("hello"), 'got string, want bool')
 assert.fails(lambda: ''.splitlines(0.0), 'got float, want bool')
+
+# bool binary operation
+assert.eq(True | False, True)
+assert.eq(True & False, False)

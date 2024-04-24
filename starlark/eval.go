@@ -1081,6 +1081,11 @@ func Binary(op syntax.Token, x, y Value) (Value, error) {
 				return x.Or(y), nil
 			}
 
+		case Bool:
+			if y, ok := y.(Bool); ok {
+				return x || y, nil
+			}
+
 		case *Dict: // union
 			if y, ok := y.(*Dict); ok {
 				return x.Union(y), nil
@@ -1099,6 +1104,10 @@ func Binary(op syntax.Token, x, y Value) (Value, error) {
 		case Int:
 			if y, ok := y.(Int); ok {
 				return x.And(y), nil
+			}
+		case Bool:
+			if y, ok := y.(Bool); ok {
+				return x && y, nil
 			}
 		case *Set: // intersection
 			if y, ok := y.(*Set); ok {
