@@ -10,6 +10,7 @@
     "memprofile",
     "showenv",
     "starlark",
-    "starlarkstruct"
+    "starlarkstruct",
+    "ycomp"
   ]
 }

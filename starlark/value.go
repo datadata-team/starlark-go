@@ -136,7 +136,7 @@ type Comparable interface {
 type CrossComparable interface {
 	Value
 
-	CompareWithType(op syntax.Token, y Value) (Value, error)
+	CompareWithType(op syntax.Token, y Value, side Side, depth int) (Value, error)
 }
 
 // A TotallyOrdered is a type whose values form a total order:
@@ -420,6 +420,11 @@ func (x Bool) CompareSameType(op syntax.Token, y_ Value, depth int) (bool, error
 
 // Float is the type of a Starlark float.
 type Float float64
+
+var (
+	_ Value          = Float(0)
+	_ TotallyOrdered = Float(0)
+)
 
 func (f Float) String() string {
 	var buf strings.Builder
@@ -1022,7 +1027,11 @@ func sliceCompare(op syntax.Token, x, y []Value, depth int) (bool, error) {
 			case syntax.NEQ:
 				return true, nil
 			default:
-				return CompareDepth(op, x[i], y[i], depth-1)
+				if ok, err := CompareDepth(op, x[i], y[i], depth-1); err != nil {
+					return false, err
+				} else {
+					return bool(ok.Truth()), nil
+				}
 			}
 		}
 	}
@@ -1473,7 +1482,11 @@ func Equal(x, y Value) (bool, error) {
 // Recursive comparisons by implementations of Value.CompareSameType
 // should use EqualDepth to prevent infinite recursion.
 func EqualDepth(x, y Value, depth int) (bool, error) {
-	return CompareDepth(syntax.EQL, x, y, depth)
+	if ok, err := CompareDepth(syntax.EQL, x, y, depth); err != nil {
+		return false, err
+	} else {
+		return bool(ok.Truth()), nil
+	}
 }
 
 // Compare compares two Starlark values.
@@ -1484,18 +1497,7 @@ func EqualDepth(x, y Value, depth int) (bool, error) {
 // Recursive comparisons by implementations of Value.CompareSameType
 // should use CompareDepth to prevent infinite recursion.
 func Compare(op syntax.Token, x, y Value) (Value, error) {
-	if c, ok := x.(CrossComparable); ok {
-		return c.CompareWithType(op, y)
-	}
-	if c, ok := y.(CrossComparable); ok {
-		return c.CompareWithType(op, x)
-	}
-
-	if r, err := CompareDepth(op, x, y, CompareLimit); err != nil {
-		return False, err
-	} else {
-		return Bool(r), nil
-	}
+	return CompareDepth(op, x, y, CompareLimit)
 }
 
 // CompareDepth compares two Starlark values.
@@ -1505,31 +1507,39 @@ func Compare(op syntax.Token, x, y Value) (Value, error) {
 //
 // The depth parameter limits the maximum depth of recursion
 // in cyclic data structures.
-func CompareDepth(op syntax.Token, x, y Value, depth int) (bool, error) {
+func CompareDepth(op syntax.Token, x, y Value, depth int) (Value, error) {
 	if depth < 1 {
-		return false, fmt.Errorf("comparison exceeded maximum recursion depth")
+		return False, fmt.Errorf("comparison exceeded maximum recursion depth")
 	}
 	if sameType(x, y) {
 		if xcomp, ok := x.(Comparable); ok {
-			return xcomp.CompareSameType(op, y, depth)
+			if ok, err := xcomp.CompareSameType(op, y, depth); err != nil {
+				return False, err
+			} else {
+				return Bool(ok), nil
+			}
 		}
 
 		if xcomp, ok := x.(TotallyOrdered); ok {
 			t, err := xcomp.Cmp(y, depth)
 			if err != nil {
-				return false, err
+				return False, err
 			}
-			return threeway(op, t), nil
+			return Bool(threeway(op, t)), nil
+		}
+
+		if xcomp, ok := x.(CrossComparable); ok {
+			return xcomp.CompareWithType(op, y, Left, depth)
 		}
 
 		// use identity comparison
 		switch op {
 		case syntax.EQL:
-			return x == y, nil
+			return Bool(x == y), nil
 		case syntax.NEQ:
-			return x != y, nil
+			return Bool(x != y), nil
 		}
-		return false, fmt.Errorf("%s %s %s not implemented", x.Type(), op, y.Type())
+		return False, fmt.Errorf("%s %s %s not implemented", x.Type(), op, y.Type())
 	}
 
 	// different types
@@ -1548,7 +1558,7 @@ func CompareDepth(op syntax.Token, x, y Value, depth int) (bool, error) {
 			} else {
 				cmp = +1 // y is -Inf
 			}
-			return threeway(op, cmp), nil
+			return Bool(threeway(op, cmp)), nil
 		}
 	case Float:
 		if y, ok := y.(Int); ok {
@@ -1562,18 +1572,25 @@ func CompareDepth(op syntax.Token, x, y Value, depth int) (bool, error) {
 			} else {
 				cmp = -1 // x is -Inf
 			}
-			return threeway(op, cmp), nil
+			return Bool(threeway(op, cmp)), nil
 		}
+	}
+
+	if xcomp, ok := x.(CrossComparable); ok {
+		return xcomp.CompareWithType(op, y, Left, depth)
+	}
+	if ycomp, ok := y.(CrossComparable); ok {
+		return ycomp.CompareWithType(op, x, Right, depth)
 	}
 
 	// All other values of different types compare unequal.
 	switch op {
 	case syntax.EQL:
-		return false, nil
+		return False, nil
 	case syntax.NEQ:
-		return true, nil
+		return True, nil
 	}
-	return false, fmt.Errorf("%s %s %s not implemented", x.Type(), op, y.Type())
+	return False, fmt.Errorf("%s %s %s not implemented", x.Type(), op, y.Type())
 }
 
 func sameType(x, y Value) bool {

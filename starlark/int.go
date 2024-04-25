@@ -62,7 +62,8 @@ var (
 	zero, one = makeSmallInt(0), makeSmallInt(1)
 	oneBig    = big.NewInt(1)
 
-	_ HasUnary = Int{}
+	_ HasUnary       = Int{}
+	_ TotallyOrdered = Int{}
 )
 
 // Unary implements the operations +int, -int, and ~int.
