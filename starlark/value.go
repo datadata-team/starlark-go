@@ -129,7 +129,14 @@ type Comparable interface {
 	// Client code should not call this method.  Instead, use the
 	// standalone Compare or Equals functions, which are defined for
 	// all pairs of operands.
-	CompareSameType(op syntax.Token, y Value, depth int) (Value, error)
+	CompareSameType(op syntax.Token, y Value, depth int) (bool, error)
+}
+
+// A CrossComparable is a value that similar to Comparable but the return value is of type Value.
+type CrossComparable interface {
+	Value
+
+	CompareWithType(op syntax.Token, y Value) (Value, error)
 }
 
 // A TotallyOrdered is a type whose values form a total order:
@@ -406,7 +413,7 @@ func (b Bool) Type() string          { return "bool" }
 func (b Bool) Freeze()               {} // immutable
 func (b Bool) Truth() Bool           { return b }
 func (b Bool) Hash() (uint32, error) { return uint32(b2i(bool(b))), nil }
-func (x Bool) CompareSameType(op syntax.Token, y_ Value, depth int) (Value, error) {
+func (x Bool) CompareSameType(op syntax.Token, y_ Value, depth int) (bool, error) {
 	y := y_.(Bool)
 	return threeway(op, b2i(bool(x))-b2i(bool(y))), nil
 }
@@ -580,7 +587,7 @@ func (s String) Slice(start, end, step int) Value {
 func (s String) Attr(name string) (Value, error) { return builtinAttr(s, name, stringMethods) }
 func (s String) AttrNames() []string             { return builtinAttrNames(stringMethods) }
 
-func (x String) CompareSameType(op syntax.Token, y_ Value, depth int) (Value, error) {
+func (x String) CompareSameType(op syntax.Token, y_ Value, depth int) (bool, error) {
 	y := y_.(String)
 	return threeway(op, strings.Compare(string(x), string(y))), nil
 }
@@ -877,7 +884,7 @@ func (x *Dict) Union(y *Dict) *Dict {
 func (d *Dict) Attr(name string) (Value, error) { return builtinAttr(d, name, dictMethods) }
 func (d *Dict) AttrNames() []string             { return builtinAttrNames(dictMethods) }
 
-func (x *Dict) CompareSameType(op syntax.Token, y_ Value, depth int) (Value, error) {
+func (x *Dict) CompareSameType(op syntax.Token, y_ Value, depth int) (bool, error) {
 	y := y_.(*Dict)
 	switch op {
 	case syntax.EQL:
@@ -885,28 +892,28 @@ func (x *Dict) CompareSameType(op syntax.Token, y_ Value, depth int) (Value, err
 		return ok, err
 	case syntax.NEQ:
 		ok, err := dictsEqual(x, y, depth)
-		return !ok.Truth(), err
+		return !ok, err
 	default:
-		return False, fmt.Errorf("%s %s %s not implemented", x.Type(), op, y.Type())
+		return false, fmt.Errorf("%s %s %s not implemented", x.Type(), op, y.Type())
 	}
 }
 
-func dictsEqual(x, y *Dict, depth int) (Value, error) {
+func dictsEqual(x, y *Dict, depth int) (bool, error) {
 	if x.Len() != y.Len() {
-		return False, nil
+		return false, nil
 	}
 	for e := x.ht.head; e != nil; e = e.next {
 		key, xval := e.key, e.value
 
 		if yval, found, _ := y.Get(key); !found {
-			return False, nil
+			return false, nil
 		} else if eq, err := EqualDepth(xval, yval, depth-1); err != nil {
-			return False, err
-		} else if !eq.Truth() {
-			return False, nil
+			return false, err
+		} else if !eq {
+			return false, nil
 		}
 	}
-	return True, nil
+	return true, nil
 }
 
 // A *List represents a Starlark list value.
@@ -991,29 +998,29 @@ func (l *List) Elements() func(yield func(Value) bool) {
 	}
 }
 
-func (x *List) CompareSameType(op syntax.Token, y_ Value, depth int) (Value, error) {
+func (x *List) CompareSameType(op syntax.Token, y_ Value, depth int) (bool, error) {
 	y := y_.(*List)
 	// It's tempting to check x == y as an optimization here,
 	// but wrong because a list containing NaN is not equal to itself.
 	return sliceCompare(op, x.elems, y.elems, depth)
 }
 
-func sliceCompare(op syntax.Token, x, y []Value, depth int) (Value, error) {
+func sliceCompare(op syntax.Token, x, y []Value, depth int) (bool, error) {
 	// Fast path: check length.
 	if len(x) != len(y) && (op == syntax.EQL || op == syntax.NEQ) {
-		return Bool(op == syntax.NEQ), nil
+		return op == syntax.NEQ, nil
 	}
 
 	// Find first element that is not equal in both lists.
 	for i := 0; i < len(x) && i < len(y); i++ {
 		if eq, err := EqualDepth(x[i], y[i], depth-1); err != nil {
-			return False, err
-		} else if !eq.Truth() {
+			return false, err
+		} else if !eq {
 			switch op {
 			case syntax.EQL:
-				return False, nil
+				return false, nil
 			case syntax.NEQ:
-				return True, nil
+				return true, nil
 			default:
 				return CompareDepth(op, x[i], y[i], depth-1)
 			}
@@ -1115,7 +1122,7 @@ func (t Tuple) String() string { return toString(t) }
 func (t Tuple) Type() string   { return "tuple" }
 func (t Tuple) Truth() Bool    { return len(t) > 0 }
 
-func (x Tuple) CompareSameType(op syntax.Token, y_ Value, depth int) (Value, error) {
+func (x Tuple) CompareSameType(op syntax.Token, y_ Value, depth int) (bool, error) {
 	y := y_.(Tuple)
 	return sliceCompare(op, x, y, depth)
 }
@@ -1183,7 +1190,7 @@ func (s *Set) Elements() func(yield func(k Value) bool) {
 	}
 }
 
-func (x *Set) CompareSameType(op syntax.Token, y_ Value, depth int) (Value, error) {
+func (x *Set) CompareSameType(op syntax.Token, y_ Value, depth int) (bool, error) {
 	y := y_.(*Set)
 	switch op {
 	case syntax.EQL:
@@ -1191,50 +1198,50 @@ func (x *Set) CompareSameType(op syntax.Token, y_ Value, depth int) (Value, erro
 		return ok, err
 	case syntax.NEQ:
 		ok, err := setsEqual(x, y, depth)
-		return !ok.Truth(), err
+		return !ok, err
 	case syntax.GE: // superset
 		if x.Len() < y.Len() {
-			return False, nil
+			return false, nil
 		}
 		iter := y.Iterate()
 		defer iter.Done()
 		return x.IsSuperset(iter)
 	case syntax.LE: // subset
 		if x.Len() > y.Len() {
-			return False, nil
+			return false, nil
 		}
 		iter := y.Iterate()
 		defer iter.Done()
 		return x.IsSubset(iter)
 	case syntax.GT: // proper superset
 		if x.Len() <= y.Len() {
-			return False, nil
+			return false, nil
 		}
 		iter := y.Iterate()
 		defer iter.Done()
 		return x.IsSuperset(iter)
 	case syntax.LT: // proper subset
 		if x.Len() >= y.Len() {
-			return False, nil
+			return false, nil
 		}
 		iter := y.Iterate()
 		defer iter.Done()
 		return x.IsSubset(iter)
 	default:
-		return False, fmt.Errorf("%s %s %s not implemented", x.Type(), op, y.Type())
+		return false, fmt.Errorf("%s %s %s not implemented", x.Type(), op, y.Type())
 	}
 }
 
-func setsEqual(x, y *Set, depth int) (Value, error) {
+func setsEqual(x, y *Set, depth int) (bool, error) {
 	if x.Len() != y.Len() {
-		return False, nil
+		return false, nil
 	}
 	for e := x.ht.head; e != nil; e = e.next {
 		if found, _ := y.Has(e.key); !found {
-			return False, nil
+			return false, nil
 		}
 	}
-	return True, nil
+	return true, nil
 }
 
 func setFromIterator(iter Iterator) (*Set, error) {
@@ -1279,25 +1286,25 @@ func (s *Set) Difference(other Iterator) (Value, error) {
 	return diff, nil
 }
 
-func (s *Set) IsSuperset(other Iterator) (Value, error) {
+func (s *Set) IsSuperset(other Iterator) (bool, error) {
 	var x Value
 	for other.Next(&x) {
 		found, err := s.Has(x)
 		if err != nil {
-			return False, err
+			return false, err
 		}
 		if !found {
-			return False, nil
+			return false, nil
 		}
 	}
-	return True, nil
+	return true, nil
 }
 
-func (s *Set) IsSubset(other Iterator) (Value, error) {
+func (s *Set) IsSubset(other Iterator) (bool, error) {
 	if count, err := s.ht.count(other); err != nil {
-		return False, err
+		return false, err
 	} else {
-		return Bool(count == s.Len()), nil
+		return count == s.Len(), nil
 	}
 }
 
@@ -1454,9 +1461,9 @@ func pathContains(path []Value, x Value) bool {
 var CompareLimit = 10
 
 // Equal reports whether two Starlark values are equal.
-func Equal(x, y Value) (Value, error) {
+func Equal(x, y Value) (bool, error) {
 	if x, ok := x.(String); ok {
-		return Bool(x == y), nil // fast path for an important special case
+		return x == y, nil // fast path for an important special case
 	}
 	return EqualDepth(x, y, CompareLimit)
 }
@@ -1465,7 +1472,7 @@ func Equal(x, y Value) (Value, error) {
 //
 // Recursive comparisons by implementations of Value.CompareSameType
 // should use EqualDepth to prevent infinite recursion.
-func EqualDepth(x, y Value, depth int) (Value, error) {
+func EqualDepth(x, y Value, depth int) (bool, error) {
 	return CompareDepth(syntax.EQL, x, y, depth)
 }
 
@@ -1477,7 +1484,18 @@ func EqualDepth(x, y Value, depth int) (Value, error) {
 // Recursive comparisons by implementations of Value.CompareSameType
 // should use CompareDepth to prevent infinite recursion.
 func Compare(op syntax.Token, x, y Value) (Value, error) {
-	return CompareDepth(op, x, y, CompareLimit)
+	if c, ok := x.(CrossComparable); ok {
+		return c.CompareWithType(op, y)
+	}
+	if c, ok := y.(CrossComparable); ok {
+		return c.CompareWithType(op, x)
+	}
+
+	if r, err := CompareDepth(op, x, y, CompareLimit); err != nil {
+		return False, err
+	} else {
+		return Bool(r), nil
+	}
 }
 
 // CompareDepth compares two Starlark values.
@@ -1487,9 +1505,9 @@ func Compare(op syntax.Token, x, y Value) (Value, error) {
 //
 // The depth parameter limits the maximum depth of recursion
 // in cyclic data structures.
-func CompareDepth(op syntax.Token, x, y Value, depth int) (Value, error) {
+func CompareDepth(op syntax.Token, x, y Value, depth int) (bool, error) {
 	if depth < 1 {
-		return False, fmt.Errorf("comparison exceeded maximum recursion depth")
+		return false, fmt.Errorf("comparison exceeded maximum recursion depth")
 	}
 	if sameType(x, y) {
 		if xcomp, ok := x.(Comparable); ok {
@@ -1499,7 +1517,7 @@ func CompareDepth(op syntax.Token, x, y Value, depth int) (Value, error) {
 		if xcomp, ok := x.(TotallyOrdered); ok {
 			t, err := xcomp.Cmp(y, depth)
 			if err != nil {
-				return False, err
+				return false, err
 			}
 			return threeway(op, t), nil
 		}
@@ -1507,11 +1525,11 @@ func CompareDepth(op syntax.Token, x, y Value, depth int) (Value, error) {
 		// use identity comparison
 		switch op {
 		case syntax.EQL:
-			return Bool(x == y), nil
+			return x == y, nil
 		case syntax.NEQ:
-			return Bool(x != y), nil
+			return x != y, nil
 		}
-		return False, fmt.Errorf("%s %s %s not implemented", x.Type(), op, y.Type())
+		return false, fmt.Errorf("%s %s %s not implemented", x.Type(), op, y.Type())
 	}
 
 	// different types
@@ -1551,11 +1569,11 @@ func CompareDepth(op syntax.Token, x, y Value, depth int) (Value, error) {
 	// All other values of different types compare unequal.
 	switch op {
 	case syntax.EQL:
-		return False, nil
+		return false, nil
 	case syntax.NEQ:
-		return True, nil
+		return true, nil
 	}
-	return False, fmt.Errorf("%s %s %s not implemented", x.Type(), op, y.Type())
+	return false, fmt.Errorf("%s %s %s not implemented", x.Type(), op, y.Type())
 }
 
 func sameType(x, y Value) bool {
@@ -1564,20 +1582,20 @@ func sameType(x, y Value) bool {
 
 // threeway interprets a three-way comparison value cmp (-1, 0, +1)
 // as a boolean comparison (e.g. x < y).
-func threeway(op syntax.Token, cmp int) Value {
+func threeway(op syntax.Token, cmp int) bool {
 	switch op {
 	case syntax.EQL:
-		return Bool(cmp == 0)
+		return cmp == 0
 	case syntax.NEQ:
-		return Bool(cmp != 0)
+		return cmp != 0
 	case syntax.LE:
-		return Bool(cmp <= 0)
+		return cmp <= 0
 	case syntax.LT:
-		return Bool(cmp < 0)
+		return cmp < 0
 	case syntax.GE:
-		return Bool(cmp >= 0)
+		return cmp >= 0
 	case syntax.GT:
-		return Bool(cmp > 0)
+		return cmp > 0
 	}
 	panic(op)
 }
@@ -1733,7 +1751,7 @@ func (b Bytes) Slice(start, end, step int) Value {
 	return Bytes(str)
 }
 
-func (x Bytes) CompareSameType(op syntax.Token, y_ Value, depth int) (Value, error) {
+func (x Bytes) CompareSameType(op syntax.Token, y_ Value, depth int) (bool, error) {
 	y := y_.(Bytes)
 	return threeway(op, strings.Compare(string(x), string(y))), nil
 }

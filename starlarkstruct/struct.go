@@ -4,6 +4,7 @@
 
 // Package starlarkstruct defines the Starlark types 'struct' and
 // 'module', both optional language extensions.
+//
 package starlarkstruct // import "go.starlark.net/starlarkstruct"
 
 // It is tempting to introduce a variant of Struct that is a wrapper
@@ -35,9 +36,10 @@ import (
 //
 // An application can add 'struct' to the Starlark environment like so:
 //
-//	globals := starlark.StringDict{
-//		"struct":  starlark.NewBuiltin("struct", starlarkstruct.Make),
-//	}
+// 	globals := starlark.StringDict{
+// 		"struct":  starlark.NewBuiltin("struct", starlarkstruct.Make),
+// 	}
+//
 func Make(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	if len(args) > 0 {
 		return nil, fmt.Errorf("struct: unexpected positional arguments")
@@ -117,9 +119,8 @@ type entry struct {
 }
 
 var (
-	_ starlark.HasAttrs   = (*Struct)(nil)
-	_ starlark.HasBinary  = (*Struct)(nil)
-	_ starlark.Comparable = (*Struct)(nil)
+	_ starlark.HasAttrs  = (*Struct)(nil)
+	_ starlark.HasBinary = (*Struct)(nil)
 )
 
 // ToStringDict adds a name/value entry to d for each field of the struct.
@@ -187,7 +188,7 @@ func (x *Struct) Binary(op syntax.Token, y starlark.Value, side starlark.Side) (
 		if eq, err := starlark.Equal(x.constructor, y.constructor); err != nil {
 			return nil, fmt.Errorf("in %s + %s: error comparing constructors: %v",
 				x.constructor, y.constructor, err)
-		} else if !eq.Truth() {
+		} else if !eq {
 			return nil, fmt.Errorf("cannot add structs of different constructors: %s + %s",
 				x.constructor, y.constructor)
 		}
@@ -243,39 +244,39 @@ func (s *Struct) AttrNames() []string {
 	return names
 }
 
-func (x *Struct) CompareSameType(op syntax.Token, y_ starlark.Value, depth int) (starlark.Value, error) {
+func (x *Struct) CompareSameType(op syntax.Token, y_ starlark.Value, depth int) (bool, error) {
 	y := y_.(*Struct)
 	switch op {
 	case syntax.EQL:
 		return structsEqual(x, y, depth)
 	case syntax.NEQ:
 		eq, err := structsEqual(x, y, depth)
-		return !eq.Truth(), err
+		return !eq, err
 	default:
-		return starlark.False, fmt.Errorf("%s %s %s not implemented", x.Type(), op, y.Type())
+		return false, fmt.Errorf("%s %s %s not implemented", x.Type(), op, y.Type())
 	}
 }
 
-func structsEqual(x, y *Struct, depth int) (starlark.Value, error) {
+func structsEqual(x, y *Struct, depth int) (bool, error) {
 	if x.len() != y.len() {
-		return starlark.False, nil
+		return false, nil
 	}
 
 	if eq, err := starlark.Equal(x.constructor, y.constructor); err != nil {
-		return starlark.False, fmt.Errorf("error comparing struct constructors %v and %v: %v",
+		return false, fmt.Errorf("error comparing struct constructors %v and %v: %v",
 			x.constructor, y.constructor, err)
-	} else if !eq.Truth() {
-		return starlark.False, nil
+	} else if !eq {
+		return false, nil
 	}
 
 	for i, n := 0, x.len(); i < n; i++ {
 		if x.entries[i].name != y.entries[i].name {
-			return starlark.False, nil
+			return false, nil
 		} else if eq, err := starlark.EqualDepth(x.entries[i].value, y.entries[i].value, depth-1); err != nil {
-			return starlark.False, err
-		} else if !eq.Truth() {
-			return starlark.False, nil
+			return false, err
+		} else if !eq {
+			return false, nil
 		}
 	}
-	return starlark.True, nil
+	return true, nil
 }
