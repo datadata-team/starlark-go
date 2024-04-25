@@ -646,7 +646,7 @@ func TestRepeatedExec(t *testing.T) {
 			t.Errorf("x=%v: %v", test.x, err) // exec error
 		} else if eq, err := starlark.Equal(globals["y"], test.want); err != nil {
 			t.Errorf("x=%v: %v", test.x, err) // comparison error
-		} else if !eq {
+		} else if !eq.Truth() {
 			t.Errorf("x=%v: got y=%v, want %v", test.x, globals["y"], test.want)
 		}
 	}

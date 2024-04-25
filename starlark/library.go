@@ -903,30 +903,30 @@ func (r rangeValue) Type() string          { return "range" }
 func (r rangeValue) Truth() Bool           { return r.len > 0 }
 func (r rangeValue) Hash() (uint32, error) { return 0, fmt.Errorf("unhashable: range") }
 
-func (x rangeValue) CompareSameType(op syntax.Token, y_ Value, depth int) (bool, error) {
+func (x rangeValue) CompareSameType(op syntax.Token, y_ Value, depth int) (Value, error) {
 	y := y_.(rangeValue)
 	switch op {
 	case syntax.EQL:
 		return rangeEqual(x, y), nil
 	case syntax.NEQ:
-		return !rangeEqual(x, y), nil
+		return !rangeEqual(x, y).Truth(), nil
 	default:
-		return false, fmt.Errorf("%s %s %s not implemented", x.Type(), op, y.Type())
+		return False, fmt.Errorf("%s %s %s not implemented", x.Type(), op, y.Type())
 	}
 }
 
-func rangeEqual(x, y rangeValue) bool {
+func rangeEqual(x, y rangeValue) Value {
 	// Two ranges compare equal if they denote the same sequence.
 	if x.len != y.len {
-		return false // sequences differ in length
+		return False // sequences differ in length
 	}
 	if x.len == 0 {
-		return true // both sequences are empty
+		return True // both sequences are empty
 	}
 	if x.start != y.start {
-		return false // first element differs
+		return False // first element differs
 	}
-	return x.len == 1 || x.step == y.step
+	return Bool(x.len == 1 || x.step == y.step)
 }
 
 func (r rangeValue) contains(x Int) bool {
@@ -1376,7 +1376,7 @@ func list_index(_ *Thread, b *Builtin, args Tuple, kwargs []Tuple) (Value, error
 	for i := start; i < end; i++ {
 		if eq, err := Equal(recv.elems[i], value); err != nil {
 			return nil, nameErr(b, err)
-		} else if eq {
+		} else if eq.Truth() {
 			return MakeInt(i), nil
 		}
 	}
@@ -1426,7 +1426,7 @@ func list_remove(_ *Thread, b *Builtin, args Tuple, kwargs []Tuple) (Value, erro
 	for i, elem := range recv.elems {
 		if eq, err := Equal(elem, value); err != nil {
 			return nil, fmt.Errorf("remove: %v", err)
-		} else if eq {
+		} else if eq.Truth() {
 			recv.elems = append(recv.elems[:i], recv.elems[i+1:]...)
 			return None, nil
 		}
@@ -2254,7 +2254,7 @@ func set_issubset(_ *Thread, b *Builtin, args Tuple, kwargs []Tuple) (Value, err
 	if err != nil {
 		return nil, nameErr(b, err)
 	}
-	return Bool(diff), nil
+	return diff, nil
 }
 
 // https://github.com/google/starlark-go/blob/master/doc/spec.md#set_issuperset.
@@ -2269,7 +2269,7 @@ func set_issuperset(_ *Thread, b *Builtin, args Tuple, kwargs []Tuple) (Value, e
 	if err != nil {
 		return nil, nameErr(b, err)
 	}
-	return Bool(diff), nil
+	return diff, nil
 }
 
 // https://github.com/google/starlark-go/blob/master/doc/spec.md#set·discard.

@@ -106,7 +106,7 @@ retry:
 			}
 			if eq, err := Equal(k, e.key); err != nil {
 				return err // e.g. excessively recursive tuple
-			} else if !eq {
+			} else if !eq.Truth() {
 				continue
 			}
 			// Key already present; update value.
@@ -192,7 +192,7 @@ func (ht *hashtable) lookup(k Value) (v Value, found bool, err error) {
 			if e.hash == h {
 				if eq, err := Equal(k, e.key); err != nil {
 					return nil, false, err // e.g. excessively recursive tuple
-				} else if eq {
+				} else if eq.Truth() {
 					return e.value, true, nil // found
 				}
 			}
@@ -236,7 +236,7 @@ func (ht *hashtable) count(iter Iterator) (int, error) {
 				if e.hash == h {
 					if eq, err := Equal(k, e.key); err != nil {
 						return 0, err
-					} else if eq {
+					} else if eq.Truth() {
 						bitIndex := i<<3 + j
 						if bitsets[bucketId].Bit(bitIndex) == 0 {
 							bitsets[bucketId].SetBit(&bitsets[bucketId], bitIndex, 1)
@@ -303,7 +303,7 @@ func (ht *hashtable) delete(k Value) (v Value, found bool, err error) {
 			if e.hash == h {
 				if eq, err := Equal(k, e.key); err != nil {
 					return nil, false, err
-				} else if eq {
+				} else if eq.Truth() {
 					// Remove e from doubly-linked list.
 					*e.prevLink = e.next
 					if e.next == nil {

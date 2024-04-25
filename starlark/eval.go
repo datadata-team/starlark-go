@@ -1025,7 +1025,7 @@ func Binary(op syntax.Token, x, y Value) (Value, error) {
 			for _, elem := range y.elems {
 				if eq, err := Equal(elem, x); err != nil {
 					return nil, err
-				} else if eq {
+				} else if eq.Truth() {
 					return True, nil
 				}
 			}
@@ -1034,7 +1034,7 @@ func Binary(op syntax.Token, x, y Value) (Value, error) {
 			for _, elem := range y {
 				if eq, err := Equal(elem, x); err != nil {
 					return nil, err
-				} else if eq {
+				} else if eq.Truth() {
 					return True, nil
 				}
 			}
