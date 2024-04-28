@@ -840,28 +840,33 @@ func range_(thread *Thread, b *Builtin, args Tuple, kwargs []Tuple) (Value, erro
 		return nil, nameErr(b, "step argument must not be zero")
 	}
 
-	return rangeValue{start: start, stop: stop, step: step, len: rangeLen(start, stop, step)}, nil
+	return RangeValue{start: start, stop: stop, step: step, len: RangeLen(start, stop, step)}, nil
 }
 
-// A rangeValue is a comparable, immutable, indexable sequence of integers
+// A RangeValue is a comparable, immutable, indexable sequence of integers
 // defined by the three parameters to a range(...) call.
 // Invariant: step != 0.
-type rangeValue struct{ start, stop, step, len int }
+type RangeValue struct{ start, stop, step, len int }
+
+func MakeRange(start, stop, step int) RangeValue {
+	var len = RangeLen(start, stop, step)
+	return RangeValue{start, stop, step, len}
+}
 
 var (
-	_ Indexable  = rangeValue{}
-	_ Sequence   = rangeValue{}
-	_ Comparable = rangeValue{}
-	_ Sliceable  = rangeValue{}
+	_ Indexable  = RangeValue{}
+	_ Sequence   = RangeValue{}
+	_ Comparable = RangeValue{}
+	_ Sliceable  = RangeValue{}
 )
 
-func (r rangeValue) Len() int          { return r.len }
-func (r rangeValue) Index(i int) Value { return MakeInt(r.start + i*r.step) }
-func (r rangeValue) Iterate() Iterator { return &rangeIterator{r, 0} }
+func (r RangeValue) Len() int          { return r.len }
+func (r RangeValue) Index(i int) Value { return MakeInt(r.start + i*r.step) }
+func (r RangeValue) Iterate() Iterator { return &rangeIterator{r, 0} }
 
-// rangeLen calculates the length of a range with the provided start, stop, and step.
+// RangeLen calculates the length of a range with the provided start, stop, and step.
 // caller must ensure that step is non-zero.
-func rangeLen(start, stop, step int) int {
+func RangeLen(start, stop, step int) int {
 	switch {
 	case step > 0:
 		if stop > start {
@@ -877,20 +882,20 @@ func rangeLen(start, stop, step int) int {
 	return 0
 }
 
-func (r rangeValue) Slice(start, end, step int) Value {
+func (r RangeValue) Slice(start, end, step int) Value {
 	newStart := r.start + r.step*start
 	newStop := r.start + r.step*end
 	newStep := r.step * step
-	return rangeValue{
+	return RangeValue{
 		start: newStart,
 		stop:  newStop,
 		step:  newStep,
-		len:   rangeLen(newStart, newStop, newStep),
+		len:   RangeLen(newStart, newStop, newStep),
 	}
 }
 
-func (r rangeValue) Freeze() {} // immutable
-func (r rangeValue) String() string {
+func (r RangeValue) Freeze() {} // immutable
+func (r RangeValue) String() string {
 	if r.step != 1 {
 		return fmt.Sprintf("range(%d, %d, %d)", r.start, r.stop, r.step)
 	} else if r.start != 0 {
@@ -899,12 +904,12 @@ func (r rangeValue) String() string {
 		return fmt.Sprintf("range(%d)", r.stop)
 	}
 }
-func (r rangeValue) Type() string          { return "range" }
-func (r rangeValue) Truth() Bool           { return r.len > 0 }
-func (r rangeValue) Hash() (uint32, error) { return 0, fmt.Errorf("unhashable: range") }
+func (r RangeValue) Type() string          { return "range" }
+func (r RangeValue) Truth() Bool           { return r.len > 0 }
+func (r RangeValue) Hash() (uint32, error) { return 0, fmt.Errorf("unhashable: range") }
 
-func (x rangeValue) CompareSameType(op syntax.Token, y_ Value, depth int) (bool, error) {
-	y := y_.(rangeValue)
+func (x RangeValue) CompareSameType(op syntax.Token, y_ Value, depth int) (bool, error) {
+	y := y_.(RangeValue)
 	switch op {
 	case syntax.EQL:
 		return rangeEqual(x, y), nil
@@ -915,7 +920,7 @@ func (x rangeValue) CompareSameType(op syntax.Token, y_ Value, depth int) (bool,
 	}
 }
 
-func rangeEqual(x, y rangeValue) bool {
+func rangeEqual(x, y RangeValue) bool {
 	// Two ranges compare equal if they denote the same sequence.
 	if x.len != y.len {
 		return false // sequences differ in length
@@ -929,7 +934,7 @@ func rangeEqual(x, y rangeValue) bool {
 	return x.len == 1 || x.step == y.step
 }
 
-func (r rangeValue) contains(x Int) bool {
+func (r RangeValue) contains(x Int) bool {
 	x32, err := AsInt32(x)
 	if err != nil {
 		return false // out of range
@@ -940,7 +945,7 @@ func (r rangeValue) contains(x Int) bool {
 }
 
 type rangeIterator struct {
-	r rangeValue
+	r RangeValue
 	i int
 }
 

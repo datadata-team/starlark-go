@@ -1066,7 +1066,7 @@ func Binary(op syntax.Token, x, y Value) (Value, error) {
 			default:
 				return nil, fmt.Errorf("'in bytes' requires bytes or int as left operand, not %s", x.Type())
 			}
-		case rangeValue:
+		case RangeValue:
 			i, err := NumberToInt(x)
 			if err != nil {
 				return nil, fmt.Errorf("'in <range>' requires integer as left operand, not %s", x.Type())
