@@ -33,6 +33,9 @@ type Thread struct {
 	// stack is the stack of (internal) call frames.
 	stack []*frame
 
+	maxCallStack   uint64
+	OnMaxCallStack func(thread *Thread)
+
 	// Print is the client-supplied implementation of the Starlark
 	// 'print' function. If nil, fmt.Fprintln(os.Stderr, msg) is
 	// used instead.
@@ -81,6 +84,10 @@ func (thread *Thread) ExecutionSteps() uint64 {
 // of calling thread.Cancel("too many steps").
 func (thread *Thread) SetMaxExecutionSteps(max uint64) {
 	thread.maxSteps = max
+}
+
+func (thread *Thread) SetMaxCallStack(max uint64) {
+	thread.maxCallStack = max
 }
 
 // Uncancel resets the cancellation state.
@@ -1236,6 +1243,15 @@ func Call(thread *Thread, fn Value, args Tuple, kwargs []Tuple) (Value, error) {
 	c, ok := fn.(Callable)
 	if !ok {
 		return nil, fmt.Errorf("invalid call of non-function (%s)", fn.Type())
+	}
+
+	// 检测方法调用栈是否溢出
+	if thread.maxCallStack != 0 && uint64(thread.CallStackDepth()) >= thread.maxCallStack {
+		if thread.OnMaxCallStack != nil {
+			thread.OnMaxCallStack(thread)
+		} else {
+			thread.Cancel("call stack overflow")
+		}
 	}
 
 	// Allocate and push a new frame.
