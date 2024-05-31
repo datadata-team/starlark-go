@@ -57,7 +57,7 @@ func (fn *Function) CallInternal(thread *Thread, args Tuple, kwargs []Tuple) (Va
 	// Digest arguments and set parameters.
 	err := setArgs(locals, fn, args, kwargs)
 	if err != nil {
-		return nil, thread.evalError(err)
+		return nil, thread.EvalError(err)
 	}
 
 	fr.locals = locals

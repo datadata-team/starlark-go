@@ -267,7 +267,7 @@ func (fr *frame) asCallFrame() CallFrame {
 	}
 }
 
-func (thread *Thread) evalError(err error) *EvalError {
+func (thread *Thread) EvalError(err error) *EvalError {
 	return &EvalError{
 		Msg:       err.Error(),
 		CallStack: thread.CallStack(),
@@ -1302,7 +1302,7 @@ func Call(thread *Thread, fn Value, args Tuple, kwargs []Tuple) (Value, error) {
 	// Always return an EvalError with an accurate frame.
 	if err != nil {
 		if _, ok := err.(*EvalError); !ok {
-			err = thread.evalError(err)
+			err = thread.EvalError(err)
 		}
 	}
 
