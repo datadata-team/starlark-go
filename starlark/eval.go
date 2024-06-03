@@ -1079,16 +1079,6 @@ func Binary(op syntax.Token, x, y Value) (Value, error) {
 				return nil, fmt.Errorf("'in <range>' requires integer as left operand, not %s", x.Type())
 			}
 			return Bool(y.contains(i)), nil
-		case Indexable:
-			for i := 0; i < y.Len(); i++ {
-				elem := y.Index(i)
-				if eq, err := Equal(elem, x); err != nil {
-					return nil, err
-				} else if eq {
-					return True, nil
-				}
-			}
-			return False, nil
 		}
 
 	case syntax.PIPE:
