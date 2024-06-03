@@ -1046,11 +1046,6 @@ func Binary(op syntax.Token, x, y Value) (Value, error) {
 				}
 			}
 			return False, nil
-		case Mapping: // e.g. dict
-			// Ignore error from Get as we cannot distinguish true
-			// errors (value cycle, type error) from "key not found".
-			_, found, _ := y.Get(x)
-			return Bool(found), nil
 		case *Set:
 			ok, err := y.Has(x)
 			return Bool(ok), err
@@ -1079,6 +1074,21 @@ func Binary(op syntax.Token, x, y Value) (Value, error) {
 				return nil, fmt.Errorf("'in <range>' requires integer as left operand, not %s", x.Type())
 			}
 			return Bool(y.contains(i)), nil
+		case Indexable: // 需要在 Mapping 之前
+			for i := 0; i < y.Len(); i++ {
+				elem := y.Index(i)
+				if eq, err := Equal(elem, x); err != nil {
+					return nil, err
+				} else if eq {
+					return True, nil
+				}
+			}
+			return False, nil
+		case Mapping: // e.g. dict
+			// Ignore error from Get as we cannot distinguish true
+			// errors (value cycle, type error) from "key not found".
+			_, found, _ := y.Get(x)
+			return Bool(found), nil
 		}
 
 	case syntax.PIPE:
