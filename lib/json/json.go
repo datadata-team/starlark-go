@@ -27,12 +27,12 @@ import (
 // Module json is a Starlark module of JSON-related functions.
 //
 //	json = module(
-//	   encode,
-//	   decode,
+//	   dumps,
+//	   loads,
 //	   indent,
 //	)
 //
-// def encode(x):
+// def dumps(x):
 //
 // The encode function accepts one required positional argument,
 // which it converts to JSON by cases:
@@ -54,7 +54,7 @@ import (
 // (e.g. it implements both Iterable and HasFields), the first case takes precedence.
 // Encoding any other value yields an error.
 //
-// def decode(x[, default]):
+// def loads(x[, default]):
 //
 // The decode function has one required positional parameter, a JSON string.
 // It returns the Starlark value that the string denotes.
@@ -76,15 +76,32 @@ import (
 var Module = &starlarkstruct.Module{
 	Name: "json",
 	Members: starlark.StringDict{
-		"encode": starlark.NewBuiltin("json.encode", encode),
-		"decode": starlark.NewBuiltin("json.decode", decode),
-		"indent": starlark.NewBuiltin("json.indent", indent),
+		"dumps":  starlark.NewBuiltin("json.dumps", json_dumps),
+		"loads":  starlark.NewBuiltin("json.loads", json_loads),
+		"indent": starlark.NewBuiltin("json.indent", json_indent),
 	},
 }
 
-func encode(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+func json_dumps(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	// 支持缩进
+	var indent starlark.Value = starlark.None
+	if err := starlark.UnpackArgs(b.Name(), nil, kwargs, "indent?", &indent); err != nil {
+		return nil, err
+	}
+	var indentStr = ""
+	switch indent := indent.(type) {
+	case starlark.Int:
+		i := indent.BigInt().Int64()
+		indentStr = strings.Repeat(" ", int(i))
+	case starlark.String:
+		indentStr = indent.GoString()
+	case starlark.NoneType:
+	default:
+		return nil, fmt.Errorf("json.dumps: invalid indent type %s", indent.Type())
+	}
+
 	var x starlark.Value
-	if err := starlark.UnpackPositionalArgs(b.Name(), args, kwargs, 1, &x); err != nil {
+	if err := starlark.UnpackPositionalArgs(b.Name(), args, nil, 1, &x); err != nil {
 		return nil, err
 	}
 
@@ -229,7 +246,19 @@ func encode(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, k
 	if err := emit(x); err != nil {
 		return nil, fmt.Errorf("%s: %v", b.Name(), err)
 	}
-	return starlark.String(buf.String()), nil
+
+	var jsonStr = buf.String()
+
+	// 处理缩进
+	if indentStr != "" {
+		buf := new(bytes.Buffer)
+		if err := json.Indent(buf, []byte(jsonStr), "", indentStr); err != nil {
+			return nil, fmt.Errorf("%s: %v", b.Name(), err)
+		}
+		return starlark.String(buf.String()), nil
+	}
+
+	return starlark.String(jsonStr), nil
 }
 
 func pointer(i interface{}) unsafe.Pointer {
@@ -270,7 +299,7 @@ func isFinite(f float64) bool {
 	return math.Abs(f) <= math.MaxFloat64
 }
 
-func indent(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+func json_indent(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	prefix, indent := "", "\t" // keyword-only
 	if err := starlark.UnpackArgs(b.Name(), nil, kwargs,
 		"prefix?", &prefix,
@@ -290,7 +319,7 @@ func indent(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, k
 	return starlark.String(buf.String()), nil
 }
 
-func decode(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (v starlark.Value, err error) {
+func json_loads(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (v starlark.Value, err error) {
 	var s string
 	var d starlark.Value
 	if err := starlark.UnpackArgs(b.Name(), args, kwargs, "x", &s, "default?", &d); err != nil {
@@ -310,9 +339,9 @@ func decode(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, k
 	// Use panic/recover with a distinguished type (failure) for error handling.
 	// If "default" is set, we only want to return it when encountering invalid
 	// json - not for any other possible causes of panic.
-	// In particular, if we ever extend the json.decode API to take a callback,
+	// In particular, if we ever extend the json.loads API to take a callback,
 	// a distinguished, private failure type prevents the possibility of
-	// json.decode with "default" becoming abused as a try-catch mechanism.
+	// json.loads with "default" becoming abused as a try-catch mechanism.
 	type failure string
 	fail := func(format string, args ...interface{}) {
 		panic(failure(fmt.Sprintf(format, args...)))
@@ -517,7 +546,7 @@ func decode(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, k
 			if d != nil {
 				v = d
 			} else {
-				err = fmt.Errorf("json.decode: at offset %d, %s", i, x)
+				err = fmt.Errorf("json.loads: at offset %d, %s", i, x)
 			}
 		case nil:
 			// nop

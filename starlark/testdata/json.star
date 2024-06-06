@@ -3,32 +3,34 @@
 load("assert.star", "assert")
 load("json.star", "json")
 
-assert.eq(dir(json), ["decode", "encode", "indent"])
+assert.eq(dir(json), ["dumps", "indent", "loads"])
 
 # Some of these cases were inspired by github.com/nst/JSONTestSuite.
 
-## json.encode
+## json.dumps
 
-assert.eq(json.encode(None), "null")
-assert.eq(json.encode(True), "true")
-assert.eq(json.encode(False), "false")
-assert.eq(json.encode(-123), "-123")
-assert.eq(json.encode(12345*12345*12345*12345*12345*12345), "3539537889086624823140625")
-assert.eq(json.encode(float(12345*12345*12345*12345*12345*12345)), "3.539537889086625e+24")
-assert.eq(json.encode(12.345e67), "1.2345e+68")
-assert.eq(json.encode("hello"), '"hello"')
-assert.eq(json.encode([1, 2, 3]), "[1,2,3]")
-assert.eq(json.encode((1, 2, 3)), "[1,2,3]")
-assert.eq(json.encode(range(3)), "[0,1,2]") # a built-in iterable
-assert.eq(json.encode(dict(x = 1, y = "two")), '{"x":1,"y":"two"}')
-assert.eq(json.encode(dict(y = "two", x = 1)), '{"x":1,"y":"two"}') # key, not insertion, order
-assert.eq(json.encode(struct(x = 1, y = "two")), '{"x":1,"y":"two"}')  # a user-defined HasAttrs
-assert.eq(json.encode("😹"[:1]), '"\\ufffd"') # invalid UTF-8 -> replacement char
+assert.eq(json.dumps(None), "null")
+assert.eq(json.dumps(True), "true")
+assert.eq(json.dumps(False), "false")
+assert.eq(json.dumps(-123), "-123")
+assert.eq(json.dumps(12345*12345*12345*12345*12345*12345), "3539537889086624823140625")
+assert.eq(json.dumps(float(12345*12345*12345*12345*12345*12345)), "3.539537889086625e+24")
+assert.eq(json.dumps(12.345e67), "1.2345e+68")
+assert.eq(json.dumps("hello"), '"hello"')
+assert.eq(json.dumps([1, 2, 3]), "[1,2,3]")
+assert.eq(json.dumps((1, 2, 3)), "[1,2,3]")
+assert.eq(json.dumps(range(3)), "[0,1,2]") # a built-in iterable
+assert.eq(json.dumps(dict(x = 1, y = "two")), '{"x":1,"y":"two"}')
+assert.eq(json.dumps(dict(y = "two", x = 1)), '{"x":1,"y":"two"}') # key, not insertion, order
+assert.eq(json.dumps(struct(x = 1, y = "two")), '{"x":1,"y":"two"}')  # a user-defined HasAttrs
+assert.eq(json.dumps("😹"[:1]), '"\\ufffd"') # invalid UTF-8 -> replacement char
+
+assert.eq(json.dumps(dict(y = "two", x = 1), indent=4), '{\n    \"x\": 1,\n    \"y\": \"two\"\n}') # key, not insertion, order
 
 def encode_error(expr, error):
-    assert.fails(lambda: json.encode(expr), error)
+    assert.fails(lambda: json.dumps(expr), error)
 
-encode_error(float("NaN"), "json.encode: cannot encode non-finite float nan")
+encode_error(float("NaN"), "json.dumps: cannot encode non-finite float nan")
 encode_error({1: "two"}, "dict has int key, want string")
 encode_error(len, "cannot encode builtin_function_or_method as JSON")
 encode_error(struct(x=[1, {"x": len}]), # nested failure
@@ -39,45 +41,45 @@ encode_error({1: 2}, 'dict has int key, want string')
 
 recursive_map = {}
 recursive_map["r"] = recursive_map
-encode_error(recursive_map, 'json.encode: in dict key "r": cycle in JSON structure')
+encode_error(recursive_map, 'json.dumps: in dict key "r": cycle in JSON structure')
 
 recursive_list = []
 recursive_list.append(recursive_list)
-encode_error(recursive_list, 'json.encode: at list index 0: cycle in JSON structure')
+encode_error(recursive_list, 'json.dumps: at list index 0: cycle in JSON structure')
 
 recursive_tuple = (1, 2, [])
 recursive_tuple[2].append(recursive_tuple)
-encode_error(recursive_tuple, 'json.encode: at tuple index 2: at list index 0: cycle in JSON structure')
+encode_error(recursive_tuple, 'json.dumps: at tuple index 2: at list index 0: cycle in JSON structure')
 
-## json.decode
+## json.loads
 
-assert.eq(json.decode("null"), None)
-assert.eq(json.decode("true"), True)
-assert.eq(json.decode("false"), False)
-assert.eq(json.decode("-123"), -123)
-assert.eq(json.decode("-0"), -0)
-assert.eq(json.decode("3539537889086624823140625"), 3539537889086624823140625)
-assert.eq(json.decode("3539537889086624823140625.0"), float(3539537889086624823140625))
-assert.eq(json.decode("3.539537889086625e+24"), 3.539537889086625e+24)
-assert.eq(json.decode("0e+1"), 0)
-assert.eq(json.decode("-0.0"), -0.0)
-assert.eq(json.decode(
+assert.eq(json.loads("null"), None)
+assert.eq(json.loads("true"), True)
+assert.eq(json.loads("false"), False)
+assert.eq(json.loads("-123"), -123)
+assert.eq(json.loads("-0"), -0)
+assert.eq(json.loads("3539537889086624823140625"), 3539537889086624823140625)
+assert.eq(json.loads("3539537889086624823140625.0"), float(3539537889086624823140625))
+assert.eq(json.loads("3.539537889086625e+24"), 3.539537889086625e+24)
+assert.eq(json.loads("0e+1"), 0)
+assert.eq(json.loads("-0.0"), -0.0)
+assert.eq(json.loads(
     "-0.000000000000000000000000000000000000000000000000000000000000000000000000000001"),
     -0.000000000000000000000000000000000000000000000000000000000000000000000000000001)
-assert.eq(json.decode('[]'), [])
-assert.eq(json.decode('[1]'), [1])
-assert.eq(json.decode('[1,2,3]'), [1, 2, 3])
-assert.eq(json.decode('{"one": 1, "two": 2}'), dict(one=1, two=2))
-assert.eq(json.decode('{"foo\\u0000bar": 42}'), {"foo\x00bar": 42})
-assert.eq(json.decode('"\\ud83d\\ude39\\ud83d\\udc8d"'), "😹💍")
-assert.eq(json.decode('"\\u0123"'), 'ģ')
-assert.eq(json.decode('"\x7f"'), "\x7f")
+assert.eq(json.loads('[]'), [])
+assert.eq(json.loads('[1]'), [1])
+assert.eq(json.loads('[1,2,3]'), [1, 2, 3])
+assert.eq(json.loads('{"one": 1, "two": 2}'), dict(one=1, two=2))
+assert.eq(json.loads('{"foo\\u0000bar": 42}'), {"foo\x00bar": 42})
+assert.eq(json.loads('"\\ud83d\\ude39\\ud83d\\udc8d"'), "😹💍")
+assert.eq(json.loads('"\\u0123"'), 'ģ')
+assert.eq(json.loads('"\x7f"'), "\x7f")
 
 def decode_error(expr, error):
-    assert.fails(lambda: json.decode(expr), error)
+    assert.fails(lambda: json.loads(expr), error)
 
 decode_error('truefalse',
-             "json.decode: at offset 4, unexpected character 'f' after value")
+             "json.loads: at offset 4, unexpected character 'f' after value")
 
 decode_error('"abc', "unclosed string literal")
 decode_error('"ab\\gc"', "invalid character 'g' in string escape code")
@@ -111,22 +113,22 @@ decode_error('{"one": 1,', "unexpected end of file")
 decode_error('{"one": 1, }', "unexpected character '}'")
 decode_error('{"one": 1]', "in object, got ']', want ',' or '}'")
 
-## json.decode with default specified
+## json.loads with default specified
 
-assert.eq(json.decode('{"valid": "json"}', default = "default value"), {"valid": "json"})
-assert.eq(json.decode('{"valid": "json"}', "default value"), {"valid": "json"})
-assert.eq(json.decode('{"invalid": "json"', default = "default value"), "default value")
-assert.eq(json.decode('{"invalid": "json"', "default value"), "default value")
-assert.eq(json.decode('{"invalid": "json"', default = None), None)
-assert.eq(json.decode('{"invalid": "json"', None), None)
+assert.eq(json.loads('{"valid": "json"}', default = "default value"), {"valid": "json"})
+assert.eq(json.loads('{"valid": "json"}', "default value"), {"valid": "json"})
+assert.eq(json.loads('{"invalid": "json"', default = "default value"), "default value")
+assert.eq(json.loads('{"invalid": "json"', "default value"), "default value")
+assert.eq(json.loads('{"invalid": "json"', default = None), None)
+assert.eq(json.loads('{"invalid": "json"', None), None)
 
 assert.fails(
-    lambda: json.decode(x = '{"invalid": "json"', default = "default value"),
+    lambda: json.loads(x = '{"invalid": "json"', default = "default value"),
     "unexpected keyword argument x"
 )
 
 def codec(x):
-    return json.decode(json.encode(x))
+    return json.loads(json.dumps(x))
 
 # string round-tripping
 strings = [
@@ -149,7 +151,7 @@ assert.eq(codec(numbers), numbers)
 
 ## json.indent
 
-s = json.encode(dict(x = 1, y = ["one", "two"]))
+s = json.dumps(dict(x = 1, y = ["one", "two"]))
 
 assert.eq(json.indent(s), '''{
 	"x": 1,
@@ -159,7 +161,7 @@ assert.eq(json.indent(s), '''{
 	]
 }''')
 
-assert.eq(json.decode(json.indent(s)), {"x": 1, "y": ["one", "two"]})
+assert.eq(json.loads(json.indent(s)), {"x": 1, "y": ["one", "two"]})
 
 assert.eq(json.indent(s, prefix='¶', indent='–––'), '''{
 ¶–––"x": 1,
