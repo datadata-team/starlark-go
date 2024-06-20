@@ -12,6 +12,7 @@
     "showenv",
     "starlark",
     "starlarkstruct",
+    "starlarktest",
     "ycomp"
   ]
 }
